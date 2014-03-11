@@ -24,7 +24,9 @@ abstractionParser = do char '\\'
 
 parensLambdaParser :: Parser Expression
 parensLambdaParser = do char '('
+                        spaces
                         content <- lambdaParser
+                        spaces
                         char ')'
                         return content
 

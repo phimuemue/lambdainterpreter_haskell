@@ -4,6 +4,7 @@ import Parser
 import Command
 import CommandParser
 import qualified Data.Map as Map
+import System.IO
 
 
 stepPrint expr env = let nexpr = simplifyStep expr env in
@@ -20,9 +21,12 @@ evalCommand cmd settings = case cmd of
                       let newenv = Map.insert name e curenv in
                       repl (settings {environment = newenv})
 
-repl settings = do input <- getLine
+repl settings = do putStr "> "
+                   hFlush stdout
+                   input <- getLine
                    (case parseCommand input of
-                    Nothing -> repl settings
+                    Nothing -> do putStrLn "Command not recognized"
+                                  repl settings
                     Just cmd -> evalCommand cmd settings)
 
 defaultEnvironment = Map.empty
