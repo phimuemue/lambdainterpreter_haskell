@@ -1,4 +1,4 @@
-module Parser (parseLambda) where
+module Parser where
 
 import Text.ParserCombinators.Parsec
 
