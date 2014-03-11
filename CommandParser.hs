@@ -17,7 +17,13 @@ bindingParser = do string "let"
 simpleExpressionParser = do expr <- lambdaParser
                             return $ SimpleExpression expr
 
+loadParser = do string "load"
+                spaces
+                name <- many1 (noneOf " ")
+                return $ LoadCmd name
+
 commandParser =     (try bindingParser)
+                <|> (try loadParser)
                 <|> (try simpleExpressionParser)
 
 parseCommand s = case parse commandParser "(unknown)" s of
