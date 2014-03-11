@@ -17,7 +17,7 @@ instance Show Expression where
              to_s plbd (Abstraction x f) = (if plbd then " " else "\\") ++ x ++ ". " ++ to_s True f
              to_s plbd (Application f@(Abstraction _ _) g@(Application _ _)) = "(" ++ to_s False f ++ ") (" ++ to_s False g ++")"
              to_s plbd (Application f@(Abstraction _ _) g@(Abstraction _ _)) = "(" ++ to_s False f ++ ") (" ++ to_s False g ++")"
-             to_s plbd (Application f@(Abstraction _ _) x) = "(" ++ to_s False f ++ ") (" ++ to_s False x ++")"
+             to_s plbd (Application f@(Abstraction _ _) x) = "(" ++ to_s False f ++ ") " ++ to_s False x
              to_s plbd (Application f g@(Application _ _)) = to_s False f ++ " (" ++ to_s False g ++")"
              to_s plbd (Application f g@(Abstraction _ _)) = to_s False f ++ " (" ++ to_s False g ++")"
              to_s plbd (Application f x) = to_s False f ++ " " ++ to_s False x
@@ -66,10 +66,10 @@ alphaEquiv e1 e2 =
     aux e1 e2 (Map.fromList []) (Map.fromList []) where
     aux :: Expression -> Expression -> Map.Map String String -> Map.Map String String -> Bool
     aux e1 e2 cn1 cn2 = case (e1, e2) of
-        (Variable x1, Variable x2) -> (Map.lookup x1 cn1) == (Map.lookup x2 cn2)
+        (Variable x1, Variable x2) -> (Map.findWithDefault x1 x1 cn1) == (Map.findWithDefault x2 x2 cn2)
         (Application f1 x1, Application f2 x2) -> (aux f1 f2 cn1 cn2) && (aux x1 x2 cn1 cn2)
         (Abstraction x1 f1, Abstraction x2 f2) -> aux f1 f2 nn1 nn2 where
-                                                  y = nextVarName "a"
+                                                  y = show $ Map.size cn1
                                                   nn1 = Map.insert x1 y cn1
                                                   nn2 = Map.insert x2 y cn2
         (_, _) -> False
