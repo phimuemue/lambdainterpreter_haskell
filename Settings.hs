@@ -3,6 +3,7 @@ module Settings where
 
 import qualified Data.Map as Map
 import System.Console.CmdArgs
+import Control.Concurrent.MVar
 
 import Expression
 
@@ -20,6 +21,7 @@ data Settings = Settings
                 , environment :: Map.Map String Expression
                 , succName :: String
                 , clargs :: Arguments
+                , interruption :: MVar Bool
                 }
 
 defaultSettings = Settings { interactivityMode = Steps
@@ -27,4 +29,5 @@ defaultSettings = Settings { interactivityMode = Steps
                            , environment = Map.empty
                            , succName = "SUCC"
                            , clargs = defaultArguments
+                           --, interruption not initialized (don't know how to do it without IO)
                            }

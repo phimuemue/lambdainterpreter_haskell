@@ -1,5 +1,5 @@
 import Settings
-import Expression (simplifyStep, alphaEquiv)
+import Expression (simplifyStep, simplifyComplete, alphaEquiv)
 import Parser
 import Command
 import CommandParser
@@ -7,17 +7,29 @@ import Data.Maybe
 import qualified Data.Map as Map
 import System.IO
 import System.Console.CmdArgs
+import System.Posix.Signals
+import Control.Concurrent
+import Control.Concurrent.MVar
 
-stepPrint expr env = let nexpr = simplifyStep expr env in
-                     if nexpr /= expr
-                         then do putStrLn $ show nexpr
-                                 stepPrint nexpr env
-                         else putStrLn $ show nexpr
+stepPrint expr settings = let env = environment settings in
+                          let nexpr = simplifyStep expr env in
+                          if nexpr /= expr
+                              then do putStrLn $ show nexpr
+                                      stepPrint nexpr settings
+                              else putStrLn $ show nexpr
+
+normalizePrint expr settings = let env = environment settings in
+                               let nexpr = simplifyComplete expr env in
+                               putStrLn $ show nexpr
+
+consumeExpression strategy = case strategy of
+    Full -> normalizePrint
+    Steps -> stepPrint
 
 evalCommand cmd settings = case cmd of
     EmptyCmd -> repl settings
     SimpleExpression e -> do putStrLn $ show e
-                             stepPrint e (environment settings)
+                             (consumeExpression (interactivityMode settings)) e settings
                              repl settings
     LetStmt name e -> let curenv = environment settings in
                       let newenv = Map.insert name e curenv in
@@ -25,6 +37,9 @@ evalCommand cmd settings = case cmd of
     LoadCmd f -> do abbrevs <- readLambdaFile f
                     let newenv = Map.union abbrevs $ environment settings
                     repl settings {environment = newenv}
+    SetCmd f -> case f of
+                "fulleval" -> repl settings {interactivityMode = Full}
+                "stepeval" -> repl settings {interactivityMode = Steps}
 
 repl settings = do putStr "> "
                    hFlush stdout
@@ -57,12 +72,20 @@ readLambdaFiles f = foldl doit (return Map.empty) f where
                                   newabbrevs <- readLambdaFile p
                                   return $ Map.union old newabbrevs
 
+interruptionHandler itr = do i <- takeMVar itr
+                             putStrLn "Interrupted"
+                             putMVar itr (not i)
+
+
+
 main :: IO ()
 main = do args <- cmdArgs $ defaultArguments
+          itr <- newMVar False -- to capture Ctrl-C signal
+          installHandler sigINT (Catch $ interruptionHandler itr) Nothing
           putStrLn $ show args
           putStrLn "sdfklsjflksdjf"
           abbrevs <- readLambdaFiles $ filename args
           putStrLn $ "Abbrevs:"
           putStrLn $ show abbrevs
           let env = Map.union abbrevs $ environment defaultSettings
-          repl $ defaultSettings {clargs = args, environment = env}
+          repl $ defaultSettings {clargs = args, environment = env, interruption = itr}

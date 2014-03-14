@@ -22,8 +22,14 @@ loadParser = do string "load"
                 name <- many1 (noneOf " ")
                 return $ LoadCmd name
 
+setParser = do string "set"
+               spaces
+               flag <- many1 (noneOf " ")
+               return $ SetCmd flag
+
 commandParser =     (try bindingParser)
                 <|> (try loadParser)
+                <|> (try setParser)
                 <|> (try simpleExpressionParser)
 
 parseCommand s = case parse commandParser "(unknown)" s of
