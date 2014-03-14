@@ -7,7 +7,7 @@ import Control.Concurrent.MVar
 
 import Expression
 
-data InteractivityMode = Full | Steps
+data InteractivityMode = Full | Steps | Interactive
 
 data Arguments = Arguments { filename :: [String]
                            } deriving (Data, Typeable, Show)

@@ -18,6 +18,17 @@ stepPrint expr settings = let env = environment settings in
                                       stepPrint nexpr settings
                               else putStrLn $ show nexpr
 
+interactivePrint expr settings = let env = environment settings in
+                                 let nexpr = simplifyStep expr env in
+                                 if nexpr /= expr
+                                     then do putStrLn $ show nexpr
+                                             c <- getSingleKeyPress "How to continue? (A: abort, C: complete, _: step)"
+                                             (case c of 
+                                                   'a' -> putStrLn $ show nexpr
+                                                   'c' -> normalizePrint nexpr settings
+                                                   _ -> interactivePrint nexpr settings)
+                                     else putStrLn $ show nexpr
+
 normalizePrint expr settings = let env = environment settings in
                                let nexpr = simplifyComplete expr env in
                                putStrLn $ show nexpr
@@ -25,6 +36,7 @@ normalizePrint expr settings = let env = environment settings in
 consumeExpression strategy = case strategy of
     Full -> normalizePrint
     Steps -> stepPrint
+    Interactive -> interactivePrint
 
 evalCommand cmd settings = case cmd of
     EmptyCmd -> repl settings
@@ -40,6 +52,7 @@ evalCommand cmd settings = case cmd of
     SetCmd f -> case f of
                 "fulleval" -> repl settings {interactivityMode = Full}
                 "stepeval" -> repl settings {interactivityMode = Steps}
+                "inteval" -> repl settings {interactivityMode = Interactive}
 
 repl settings = do putStr "> "
                    hFlush stdout
@@ -76,12 +89,20 @@ interruptionHandler itr = do i <- takeMVar itr
                              putStrLn "Interrupted"
                              putMVar itr (not i)
 
-
+getSingleKeyPress :: String -> IO Char
+getSingleKeyPress msg = do
+  hSetBuffering stdin NoBuffering
+  putStr msg
+  hFlush stdout
+  x <- getChar
+  hSetBuffering stdin LineBuffering
+  putStrLn ""
+  return x
 
 main :: IO ()
 main = do args <- cmdArgs $ defaultArguments
           itr <- newMVar False -- to capture Ctrl-C signal
-          installHandler sigINT (Catch $ interruptionHandler itr) Nothing
+          --installHandler sigINT (Catch $ interruptionHandler itr) Nothing
           putStrLn $ show args
           putStrLn "sdfklsjflksdjf"
           abbrevs <- readLambdaFiles $ filename args
