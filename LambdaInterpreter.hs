@@ -53,6 +53,9 @@ evalCommand cmd settings = case cmd of
                 "fulleval" -> repl settings {interactivityMode = Full}
                 "stepeval" -> repl settings {interactivityMode = Steps}
                 "inteval" -> repl settings {interactivityMode = Interactive}
+                _ -> do 
+                    _ <- putStrLn $ "Unknown option: " ++ f
+                    repl settings
 
 repl settings = do putStr "> "
                    hFlush stdout
