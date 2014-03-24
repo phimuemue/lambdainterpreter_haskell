@@ -10,7 +10,7 @@ variableParser = do r <- many1 (noneOf " .\\()")
 
 applicationParser :: Parser Expression
 applicationParser = do content <- sepBy1 (try variableParser <|> try parensLambdaParser) spaces
-                       return $ foldl1 (\a b -> Application a b) content
+                       return $ foldl1 (\a b -> application a b) content
                         
 abstractionParser :: Parser Expression
 abstractionParser = do char '\\'
@@ -20,7 +20,7 @@ abstractionParser = do char '\\'
                        char '.'
                        spaces
                        body <- lambdaParser
-                       return $ foldr (\(Variable v) a -> Abstraction v a) body varlist
+                       return $ foldr (\(Variable v) a -> abstraction v a) body varlist
 
 parensLambdaParser :: Parser Expression
 parensLambdaParser = do char '('
@@ -37,5 +37,5 @@ lambdaParser =     (try applicationParser)
                <|> (try parensLambdaParser)
 
 parseLambda s = case parse lambdaParser "(unknown)" s of
-                Right a -> Just a
+                Right a -> Just $ taggedExpression a
                 Left _ -> Nothing
