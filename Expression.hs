@@ -95,8 +95,6 @@ etaReducible term = case term of
     Application f x -> (etaReducible f) || (etaReducible x)
 
 etaReduce term = case term of
-    --e@(Abstraction x (Application (Variable f) (Variable y))) -> if (x==y && f/=y) then (Variable f) else Abstraction x (etaReduce e)
-    --e@(Abstraction x (Application f (Variable y))) -> if x==y then f else Abstraction x (etaReduce e) -- somewhat working
     e@(Abstraction x (Application f (Variable y))) -> if (x==y) && (not $ x `elem` freeVariables f) then f else Abstraction x (etaReduce (Application f (Variable y)))
     Abstraction x f -> Abstraction x (etaReduce f)
     Application f x -> if etaReducible f
