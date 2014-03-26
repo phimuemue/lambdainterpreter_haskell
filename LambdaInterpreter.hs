@@ -27,25 +27,28 @@ stepPrint expr settings = let env = environment settings in
                                        return nexpr
 
 interactivePrint :: Expression -> Settings -> IO Expression
-interactivePrint expr settings = let env = environment settings in
-                                 if containsAbbreviations expr env
-                                 then let nexpr = applyAbbreviations expr env in
-                                      do prettyPrint nexpr
-                                         c <- getSingleKeyPress "How to continue? (A: abort, C: complete, _: step)"
-                                         (case c of
-                                               'a' -> return nexpr
-                                               'c' -> normalizePrint nexpr settings
-                                               _   -> interactivePrint nexpr settings)
-                                 else let taggedExpr = normalOrderTags expr in
-                                      let nexpr = applyTags taggedExpr in
-                                      if taggedExpr /= expr
-                                      then do prettyPrint taggedExpr
-                                              c <- getSingleKeyPress "How to continue? (A: abort, C: complete, _: step)"
-                                              (case c of 
-                                                    'a' -> return nexpr
-                                                    'c' -> normalizePrint nexpr settings
-                                                    _ -> interactivePrint nexpr settings)
-                                     else return nexpr
+interactivePrint expr settings = 
+     let env = environment settings in
+     if containsAbbreviations expr env
+     then let nexpr = applyAbbreviations expr env in
+          do prettyPrint nexpr
+             c <- howToContinue
+             (case c of
+                   'a' -> return nexpr
+                   'c' -> normalizePrint nexpr settings
+                   _   -> interactivePrint nexpr settings)
+     else let taggedExpr = normalOrderTags expr in
+          let nexpr = applyTags taggedExpr in
+          if taggedExpr /= expr
+          then do prettyPrint taggedExpr
+                  c <- howToContinue
+                  (case c of 
+                        'a' -> return nexpr
+                        'c' -> normalizePrint nexpr settings
+                        _ -> interactivePrint nexpr settings)
+         else return nexpr
+    where howToContinue = getSingleKeyPress $ "How to continue? " ++ 
+                                              "(A: abort, C: complete, _: step)"
 
 normalizePrint :: Expression -> Settings -> IO Expression
 normalizePrint expr settings = let env = environment settings in
@@ -60,9 +63,11 @@ consumeExpression strategy = case strategy of
 evalCommand cmd settings = case cmd of
     EmptyCmd -> repl settings
     SimpleExpression e -> do prettyPrint e
-                             result <- (consumeExpression (interactivityMode settings)) e settings
+                             result <- computeMe e settings
                              putStrLn $ show result
                              repl settings
+                          where computeMe = consumeExpression
+                                            (interactivityMode settings)
     LetStmt name e -> let curenv = environment settings in
                       let newenv = Map.insert name e curenv in
                       repl (settings {environment = newenv})
@@ -100,7 +105,8 @@ addEnvBindingFromLine env line = case getOnlyLetCommand line of
 readLambdaFile f = do putStr "loading "
                       putStrLn f
                       content <- readFile f
-                      let res = foldl addEnvBindingFromLine Map.empty (lines content)
+                      let res = foldl addEnvBindingFromLine Map.empty $
+                                lines content
                       return res
 
 readLambdaFiles f = foldl doit (return Map.empty) f where
@@ -132,4 +138,7 @@ main = do args <- cmdArgs $ defaultArguments
           putStrLn $ "Abbrevs:"
           putStrLn $ show abbrevs
           let env = Map.union abbrevs $ environment defaultSettings
-          repl $ defaultSettings {clargs = args, environment = env, interruption = itr}
+          repl $ defaultSettings { clargs = args
+                                 , environment = env
+                                 , interruption = itr
+                                 }
