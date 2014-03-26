@@ -41,9 +41,11 @@ instance Show Expression where
 allTags :: Expression -> Expression
 allTags term = case term of
     -- eta-reducible abstraction
-    Abstraction _ x e@(Application _ f (Variable y)) -> Abstraction (x==y) x $ allTags e
+    Abstraction _ x e@(Application _ f (Variable y)) -> 
+        Abstraction (x==y) x $ allTags e
     -- beta-reducible application
-    Application _ e@(Abstraction _ x f) y -> Application True (allTags e) (allTags y)
+    Application _ e@(Abstraction _ x f) y -> 
+        Application True (allTags e) (allTags y)
     -- "normal stuff"
     Variable x -> Variable x
     Abstraction _ x f -> Abstraction False x $ allTags f
