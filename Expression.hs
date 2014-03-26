@@ -19,15 +19,24 @@ application f x = Application False f x
 
 instance Show Expression where
     show e = to_s False e where
-             to_s plbd (Variable s) = s
-             to_s plbd (Abstraction _ x f@(Abstraction _ y b)) = (if plbd then " " else "\\")++ x ++ to_s True f
-             to_s plbd (Abstraction _ x f) = (if plbd then " " else "\\") ++ x ++ ". " ++ to_s True f
-             to_s plbd (Application _ f@(Abstraction _ _ _) g@(Application _ _ _)) = "(" ++ to_s False f ++ ") (" ++ to_s False g ++")"
-             to_s plbd (Application _ f@(Abstraction _ _ _) g@(Abstraction _ _ _)) = "(" ++ to_s False f ++ ") (" ++ to_s False g ++")"
-             to_s plbd (Application _ f@(Abstraction _ _ _) x) = "(" ++ to_s False f ++ ") " ++ to_s False x
-             to_s plbd (Application _ f g@(Application _ _ _)) = to_s False f ++ " (" ++ to_s False g ++")"
-             to_s plbd (Application _ f g@(Abstraction _ _ _)) = to_s False f ++ " (" ++ to_s False g ++")"
-             to_s plbd (Application _ f x) = to_s False f ++ " " ++ to_s False x
+        to_s plbd term = case term of
+            Variable s -> s
+            Abstraction _ x f@(Abstraction _ _ _) -> 
+               (if plbd then " " else "\\")++ x ++ to_s True f
+            Abstraction _ x f -> 
+               (if plbd then " " else "\\") ++ x ++ ". " ++ to_s True f
+            Application _ f@(Abstraction _ _ _) g@(Application _ _ _) -> 
+               "(" ++ to_s False f ++ ") (" ++ to_s False g ++")"
+            Application _ f@(Abstraction _ _ _) g@(Abstraction _ _ _) ->
+                "(" ++ to_s False f ++ ") (" ++ to_s False g ++")"
+            Application _ f@(Abstraction _ _ _) x -> 
+               "(" ++ to_s False f ++ ") " ++ to_s False x
+            Application _ f g@(Application _ _ _) ->
+               to_s False f ++ " (" ++ to_s False g ++")"
+            Application _ f g@(Abstraction _ _ _) ->
+               to_s False f ++ " (" ++ to_s False g ++")"
+            Application _ f x ->
+               to_s False f ++ " " ++ to_s False x
 
 allTags :: Expression -> Expression
 allTags term = case term of
