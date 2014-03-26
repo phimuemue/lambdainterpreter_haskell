@@ -1,8 +1,9 @@
 import Settings
-import Expression (simplifyStep, simplifyComplete, alphaEquiv)
+import Expression
 import Parser
 import Command
 import CommandParser
+import PrettyPrinter
 import Data.Maybe
 import qualified Data.Map as Map
 import System.IO
@@ -11,27 +12,45 @@ import System.Posix.Signals
 import Control.Concurrent
 import Control.Concurrent.MVar
 
+stepPrint :: Expression -> Settings -> IO Expression
 stepPrint expr settings = let env = environment settings in
-                          let nexpr = simplifyStep expr env in
-                          if nexpr /= expr
-                              then do putStrLn $ show nexpr
-                                      stepPrint nexpr settings
-                              else putStrLn $ show nexpr
+                          if containsAbbreviations expr env
+                          then let nexpr = applyAbbreviations expr env in
+                               do prettyPrint nexpr
+                                  stepPrint nexpr settings
+                          else let taggedExpr = normalOrderTags expr in
+                               let nexpr = applyTags taggedExpr in
+                               if taggedExpr /= expr
+                               then do prettyPrint taggedExpr
+                                       stepPrint nexpr settings
+                               else do prettyPrint taggedExpr
+                                       return nexpr
 
+interactivePrint :: Expression -> Settings -> IO Expression
 interactivePrint expr settings = let env = environment settings in
-                                 let nexpr = simplifyStep expr env in
-                                 if nexpr /= expr
-                                     then do putStrLn $ show nexpr
-                                             c <- getSingleKeyPress "How to continue? (A: abort, C: complete, _: step)"
-                                             (case c of 
-                                                   'a' -> putStrLn $ show nexpr
-                                                   'c' -> normalizePrint nexpr settings
-                                                   _ -> interactivePrint nexpr settings)
-                                     else putStrLn $ show nexpr
+                                 if containsAbbreviations expr env
+                                 then let nexpr = applyAbbreviations expr env in
+                                      do prettyPrint nexpr
+                                         c <- getSingleKeyPress "How to continue? (A: abort, C: complete, _: step)"
+                                         (case c of
+                                               'a' -> return nexpr
+                                               'c' -> normalizePrint nexpr settings
+                                               _   -> interactivePrint nexpr settings)
+                                 else let taggedExpr = normalOrderTags expr in
+                                      let nexpr = applyTags taggedExpr in
+                                      if taggedExpr /= expr
+                                      then do prettyPrint taggedExpr
+                                              c <- getSingleKeyPress "How to continue? (A: abort, C: complete, _: step)"
+                                              (case c of 
+                                                    'a' -> return nexpr
+                                                    'c' -> normalizePrint nexpr settings
+                                                    _ -> interactivePrint nexpr settings)
+                                     else return nexpr
 
+normalizePrint :: Expression -> Settings -> IO Expression
 normalizePrint expr settings = let env = environment settings in
                                let nexpr = simplifyComplete expr env in
-                               putStrLn $ show nexpr
+                               return nexpr
 
 consumeExpression strategy = case strategy of
     Full -> normalizePrint
@@ -40,8 +59,9 @@ consumeExpression strategy = case strategy of
 
 evalCommand cmd settings = case cmd of
     EmptyCmd -> repl settings
-    SimpleExpression e -> do putStrLn $ show e
-                             (consumeExpression (interactivityMode settings)) e settings
+    SimpleExpression e -> do prettyPrint e
+                             result <- (consumeExpression (interactivityMode settings)) e settings
+                             putStrLn $ show result
                              repl settings
     LetStmt name e -> let curenv = environment settings in
                       let newenv = Map.insert name e curenv in

@@ -29,17 +29,38 @@ instance Show Expression where
              to_s plbd (Application _ f g@(Abstraction _ _ _)) = to_s False f ++ " (" ++ to_s False g ++")"
              to_s plbd (Application _ f x) = to_s False f ++ " " ++ to_s False x
 
-taggedExpression term = case term of
+allTags :: Expression -> Expression
+allTags term = case term of
     -- eta-reducible abstraction
-    Abstraction _ x e@(Application _ f (Variable y)) -> Abstraction (x==y) x $ taggedExpression e
+    Abstraction _ x e@(Application _ f (Variable y)) -> Abstraction (x==y) x $ allTags e
     -- beta-reducible application
-    Application _ e@(Abstraction _ x f) y -> Application True (taggedExpression e) (taggedExpression y)
+    Application _ e@(Abstraction _ x f) y -> Application True (allTags e) (allTags y)
     -- "normal stuff"
     Variable x -> Variable x
-    Abstraction _ x f -> Abstraction False x $ taggedExpression f
+    Abstraction _ x f -> Abstraction False x $ allTags f
     Application _ f x -> Application False tf tx
-                         where tf = taggedExpression f
-                               tx = taggedExpression x
+                         where tf = allTags f
+                               tx = allTags x
+
+normalOrderTags :: Expression -> Expression
+normalOrderTags term = case term of
+    Application _ e@(Abstraction _ x f) y -> Application True e y
+    Application _ f x -> if betaReducible f
+                         then application (normalOrderTags f) x
+                         else application f (normalOrderTags x)
+    Abstraction _ x f -> abstraction x (normalOrderTags f)
+    e -> e
+
+-- applyTags takes a (possibly) tagged expression and returns an untagged one
+applyTags :: Expression -> Expression
+applyTags term = case term of
+    Variable x -> Variable x
+    Application False f x -> application (applyTags f) (applyTags x)
+    Application True (Abstraction _ x f) y -> replaceVariable f x y
+    Application True _ y -> error "Tagged application without abstraction as first part."
+    Abstraction False x f -> abstraction x (applyTags f)
+    Abstraction True x (Application _ f y) -> applyTags f
+    Abstraction True x _ -> error "Tagged abstraction without application as second part."
 
 nextVarName [] = "a"
 nextVarName (h:t) = if ord h == ord 'z'
@@ -76,7 +97,7 @@ replaceVariable term v subs = case term of
     Variable x -> if x==v then subs else Variable x
     Application _ f x -> application (replaceVariable f v subs) (replaceVariable x v subs)
     Abstraction _ x f -> if v == nx then abstraction x f else abstraction nx (replaceVariable nf v subs)
-                       where Abstraction False nx nf = if x `elem` (freeVariables subs) 
+                         where Abstraction False nx nf = if x `elem` (freeVariables subs) 
                                                  then let nv = unusedVariable f in abstraction nv (replaceVariable f x (Variable nv))
                                                  else abstraction x f
 
@@ -99,14 +120,16 @@ betaReducible term = case term of
     Application _ f x -> (betaReducible f) || (betaReducible x)
     Abstraction _ x f -> betaReducible f
 
-betaReduce term = taggedExpression $ aux term 
-    where aux term = case term of
-                     Application _ (Abstraction _ x f) y -> replaceVariable f x y
-                     Application _ f x -> if betaReducible f
-                                        then application (betaReduce f) x
-                                        else application f (betaReduce x)
-                     Abstraction _ x f -> abstraction x (betaReduce f)
-                     e -> e
+betaReduce term = applyTags $ normalOrderTags term
+
+--betaReduce term = normalOrderTags $ aux term
+--    where aux term = case term of
+--                     Application _ (Abstraction _ x f) y -> replaceVariable f x y
+--                     Application _ f x -> if betaReducible f
+--                                        then application (betaReduce f) x
+--                                        else application f (betaReduce x)
+--                     Abstraction _ x f -> abstraction x (betaReduce f)
+--                     e -> e
 
 etaReducible term = case term of
     Variable _ -> False
@@ -114,7 +137,7 @@ etaReducible term = case term of
     Abstraction _ _ f -> etaReducible f
     Application _ f x -> (etaReducible f) || (etaReducible x)
 
-etaReduce term = taggedExpression $ aux term
+etaReduce term = normalOrderTags $ aux term
     where aux term = case term of
                      e@(Abstraction _ x (Application _ f (Variable y))) -> if (x==y) && (not $ x `elem` freeVariables f) 
                                                                        then f 
@@ -124,6 +147,13 @@ etaReduce term = taggedExpression $ aux term
                                           then application (etaReduce f) x
                                           else application f (etaReduce x)
                      e -> e
+
+containsAbbreviations term env = case term of
+   Application _ f x -> (containsAbbreviations f env) || (containsAbbreviations x env)
+   Variable v -> v `Map.member` env
+   Abstraction _ x f -> if x `Map.member` env 
+                        then containsAbbreviations f $ Map.delete x env
+                        else containsAbbreviations f env
 
 applyAbbreviations term env = case term of
    Application b f x -> Application b (applyAbbreviations f env) (applyAbbreviations x env)

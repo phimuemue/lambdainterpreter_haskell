@@ -37,5 +37,5 @@ lambdaParser =     (try applicationParser)
                <|> (try parensLambdaParser)
 
 parseLambda s = case parse lambdaParser "(unknown)" s of
-                Right a -> Just $ taggedExpression a
+                Right a -> Just a
                 Left _ -> Nothing
