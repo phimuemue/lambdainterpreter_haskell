@@ -38,20 +38,22 @@ instance Show Expression where
             Application _ f x ->
                to_s False f ++ " " ++ to_s False x
 
-allTags :: Expression -> Expression
-allTags term = case term of
+allOutermostTags :: Expression -> Expression
+allOutermostTags term = case term of
     -- eta-reducible abstraction
     Abstraction _ x e@(Application _ f (Variable y)) -> 
-        Abstraction (x==y) x $ allTags e
+        if x==y
+        then Abstraction True x e
+        else Abstraction False x $ allOutermostTags e
     -- beta-reducible application
     Application _ e@(Abstraction _ x f) y -> 
-        Application True (allTags e) (allTags y)
+        Application True e y
     -- "normal stuff"
     Variable x -> Variable x
-    Abstraction _ x f -> Abstraction False x $ allTags f
+    Abstraction _ x f -> Abstraction False x $ allOutermostTags f
     Application _ f x -> Application False tf tx
-                         where tf = allTags f
-                               tx = allTags x
+                         where tf = allOutermostTags f
+                               tx = allOutermostTags x
 
 normalOrderTags :: Expression -> Expression
 normalOrderTags term = case term of
@@ -143,7 +145,7 @@ betaReducible term = case term of
     Application _ f x -> (betaReducible f) || (betaReducible x)
     Abstraction _ x f -> betaReducible f
 
-betaReduce term = applyTags $ normalOrderTags term
+betaReduce term = applyTags $ allOutermostTags term
 
 etaReducible term = case term of
     Variable _ -> False
@@ -151,7 +153,7 @@ etaReducible term = case term of
     Abstraction _ _ f -> etaReducible f
     Application _ f x -> (etaReducible f) || (etaReducible x)
 
-etaReduce term = normalOrderTags $ aux term
+etaReduce term = allOutermostTags $ aux term
     where aux term = case term of
                      e@(Abstraction _ x (Application _ f v@(Variable y))) -> 
                         if (x==y) && (not $ x `elem` freeVariables f) 

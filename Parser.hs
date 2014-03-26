@@ -34,12 +34,10 @@ parensLambdaParser = do char '('
                         return content
 
 lambdaParser :: Parser Expression
-lambdaParser = do content <- ((try applicationParser) 
-                               <|> (try variableParser)
-                               <|> (try abstractionParser)
-                               <|> (try parensLambdaParser))
-                  spaces
-                  return content
+lambdaParser = (try applicationParser) 
+               <|> (try variableParser)
+               <|> (try abstractionParser)
+               <|> (try parensLambdaParser)
 
 parseLambda s = case parse lambdaParser "(unknown)" s of
                 Right a -> Just a
