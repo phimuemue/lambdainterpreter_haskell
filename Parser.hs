@@ -1,43 +1,33 @@
 module Parser where
 
+import Data.List
 import Text.ParserCombinators.Parsec
 
 import Expression
 
-variableParser :: Parser Expression
-variableParser = do r <- many1 (noneOf " .\\()")
-                    return (Variable r)
+variableIdentifier :: Parser String
+variableIdentifier = do r <- many1 (noneOf " .\\()")
+                        return r
 
-applicationParser :: Parser Expression
-applicationParser = do content <- endBy1 vl spaces
-                       return $ foldl1 (\a b -> application a b) content
-                    where vl = (try variableParser <|> try parensLambdaParser)
-                        
-abstractionParser :: Parser Expression
-abstractionParser = do char '\\'
-                       spaces
-                       varlist <- (endBy1 variableParser spaces)
-                       char '.'
-                       spaces
-                       body <- lambdaParser
-                       spaces
-                       return $ foldr (\(Variable v) a -> abstraction v a) 
-                                body varlist
-
-parensLambdaParser :: Parser Expression
-parensLambdaParser = do char '('
-                        spaces
-                        content <- lambdaParser
-                        spaces
-                        char ')'
-                        _ <- spaces
-                        return content
+singleLambdaParser :: Parser Expression
+singleLambdaParser = (do char '\\'
+                         spaces
+                         vl <- (endBy1 variableIdentifier spaces)
+                         char '.'
+                         spaces
+                         e <- lambdaParser
+                         return $ foldr (\x e -> abstraction x e) e vl)
+                     <|> do e <- ((do char '('
+                                      e' <- lambdaParser
+                                      char ')'
+                                      return e')
+                                 <|> do v <- variableIdentifier
+                                        return $ variable v)
+                            return e
 
 lambdaParser :: Parser Expression
-lambdaParser = (try applicationParser) 
-               <|> (try variableParser)
-               <|> (try abstractionParser)
-               <|> (try parensLambdaParser)
+lambdaParser = do l <- sepBy1 singleLambdaParser spaces
+                  return $ foldl1 (\f x -> application f x) l
 
 parseLambda s = case parse lambdaParser "(unknown)" s of
                 Right a -> Just a
