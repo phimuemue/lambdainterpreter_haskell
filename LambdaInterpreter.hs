@@ -12,43 +12,51 @@ import System.Posix.Signals
 import Control.Concurrent
 import Control.Concurrent.MVar
 
+-- tryFunctions tries to apply one function after another to an expression
+-- until some change occurs. If no function yields a change, it terminates.
+-- Note: the settings have to be capsuled in the functions given in the
+-- list.
+tryFunctions :: [Expression -> Expression] -> Expression -> IO Expression
+tryFunctions [] term = return term
+tryFunctions (f:fs) expr =
+    let taggedExpr = f expr in
+    let newExpr = applyTags taggedExpr in
+    if taggedExpr /= expr
+    then do prettyPrint taggedExpr
+            tryFunctions (f:fs) newExpr
+    else tryFunctions fs expr
+
 stepPrint :: Expression -> Settings -> IO Expression
-stepPrint expr settings = let env = environment settings in
-                          if containsAbbreviations expr env
-                          then let nexpr = applyAbbreviations expr env in
-                               do prettyPrint nexpr
-                                  stepPrint nexpr settings
-                          else let taggedExpr = normalOrderTags expr in
-                               let nexpr = applyTags taggedExpr in
-                               if taggedExpr /= expr
-                               then do prettyPrint taggedExpr
-                                       stepPrint nexpr settings
-                               else do prettyPrint taggedExpr
-                                       return nexpr
+stepPrint expr settings = 
+    tryFunctions
+    [ allAbbreviationTags $ environment settings
+    , normalOrderTags
+    ]
+    expr
+
+tryFunctionsInteractive :: [Expression -> Expression] -> Expression -> IO Expression
+tryFunctionsInteractive [] term = return term
+tryFunctionsInteractive (f:fs) expr =
+    let taggedExpr = f expr in
+    let newExpr = applyTags taggedExpr in
+    if taggedExpr /= expr
+    then do prettyPrint taggedExpr
+            c <- howToContinue
+            (case c of
+                'a' -> return newExpr
+                'c' -> tryFunctions (f:fs) newExpr
+                _   -> tryFunctionsInteractive (f:fs) newExpr)
+    else tryFunctionsInteractive fs expr
+    where howToContinue = getSingleKeyPress 
+                          "How to continue? (A: abort, C: complete, _: step)"
 
 interactivePrint :: Expression -> Settings -> IO Expression
-interactivePrint expr settings = 
-     let env = environment settings in
-     if containsAbbreviations expr env
-     then let nexpr = applyAbbreviations expr env in
-          do prettyPrint nexpr
-             c <- howToContinue
-             (case c of
-                   'a' -> return nexpr
-                   'c' -> normalizePrint nexpr settings
-                   _   -> interactivePrint nexpr settings)
-     else let taggedExpr = normalOrderTags expr in
-          let nexpr = applyTags taggedExpr in
-          if taggedExpr /= expr
-          then do prettyPrint taggedExpr
-                  c <- howToContinue
-                  (case c of 
-                        'a' -> return nexpr
-                        'c' -> normalizePrint nexpr settings
-                        _ -> interactivePrint nexpr settings)
-         else return nexpr
-    where howToContinue = getSingleKeyPress $ "How to continue? " ++ 
-                                              "(A: abort, C: complete, _: step)"
+interactivePrint expr settings =
+    tryFunctionsInteractive
+    [ allAbbreviationTags $ environment settings
+    , normalOrderTags
+    ]
+    expr
 
 normalizePrint :: Expression -> Settings -> IO Expression
 normalizePrint expr settings = let env = environment settings in

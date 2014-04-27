@@ -26,7 +26,7 @@ singleLambdaParser = (do char '\\'
                             return e
 
 lambdaParser :: Parser Expression
-lambdaParser = do l <- sepBy1 singleLambdaParser spaces
+lambdaParser = do l <- endBy1 singleLambdaParser spaces
                   return $ foldl1 (\f x -> application f x) l
 
 parseLambda s = case parse lambdaParser "(unknown)" s of

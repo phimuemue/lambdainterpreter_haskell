@@ -2,8 +2,10 @@ module PrettyPrinter where
 
 import Expression
 
+import Data.Maybe
 import System.Console.ANSI
 
+setSGRAbbrev = setSGR [SetColor Foreground Vivid Green]
 setSGRFunCall = setSGR [SetColor Foreground Vivid Red]
 setSGRFunArg = setSGR [SetColor Foreground Vivid Blue]
 setSGREta = setSGR [SetColor Foreground Vivid Green]
@@ -13,7 +15,9 @@ prettyPrint term = do aux False term
                       setSGR []
                       putStrLn ""
     where aux plbd term = case term of
-            Variable s -> putStr s
+            Variable abb s -> do (if isJust abb then setSGRAbbrev else return ())
+                                 putStr s
+                                 setSGR []
             Abstraction eta x f -> do (if eta then setSGREta else return ())
                                       case (x, f) of
                                            (_, Abstraction _ y b) -> do putStr (if plbd then " " else "\\")
@@ -53,9 +57,9 @@ prettyPrint term = do aux False term
                                                                           setSGRFunArg
                                                                           putStr $ show x
                                                                           setSGR []
-                                             (_, Variable _) -> do putStr $ show f
-                                                                   putStr " "
-                                                                   putStr $ show x
+                                             (_, Variable _ _) -> do putStr $ show f
+                                                                     putStr " "
+                                                                     putStr $ show x
                                              (_, _) -> do putStr $ show f 
                                                           putStr " ("
                                                           putStr $ show x
@@ -77,9 +81,9 @@ prettyPrint term = do aux False term
                                                                          aux False f 
                                                                          putStr ") "
                                                                          aux False x
-                                            (_, Variable _) -> do aux False f
-                                                                  putStr " "
-                                                                  aux False x
+                                            (_, Variable _ _) -> do aux False f
+                                                                    putStr " "
+                                                                    aux False x
                                             (_, _) -> do aux False f 
                                                          putStr " ("
                                                          aux False x
