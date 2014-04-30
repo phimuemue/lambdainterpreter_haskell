@@ -2,8 +2,6 @@ module Expression where
 
 import Data.Char
 import qualified Data.Map as Map
-import Control.Monad
-import Data.Maybe
 
 type Environment = Map.Map String Expression
 
@@ -16,8 +14,11 @@ data Expression =
     | Application Bool Expression Expression deriving (Eq, Ord)
 
 -- smart constructors for expressions
+variable :: String -> Expression
 variable x = Variable Nothing x
+abstraction :: String -> Expression -> Expression
 abstraction x f = Abstraction False x f
+application :: Expression -> Expression -> Expression
 application f x = Application False f x
 
 instance Show Expression where
@@ -56,12 +57,12 @@ allAbbreviationTags env term = case term of
 allOutermostTags :: Expression -> Expression
 allOutermostTags term = case term of
     -- eta-reducible abstraction
-    Abstraction _ x e@(Application _ f (Variable _ y)) -> 
+    Abstraction _ x e@(Application _ _ (Variable _ y)) -> 
         if x==y
         then Abstraction True x e
         else Abstraction False x $ allOutermostTags e
     -- beta-reducible application
-    Application _ e@(Abstraction _ x f) y -> 
+    Application _ e@(Abstraction _ _ _) y -> 
         Application True e y
     -- "normal stuff"
     Variable _ x -> variable x
@@ -72,7 +73,7 @@ allOutermostTags term = case term of
 
 normalOrderTags :: Expression -> Expression
 normalOrderTags term = case term of
-    Application _ e@(Abstraction _ x f) y -> Application True e y
+    Application _ e@(Abstraction _ _ _) y -> Application True e y
     Application _ f x -> if betaReducible f
                          then application (normalOrderTags f) x
                          else application f (normalOrderTags x)
@@ -83,45 +84,51 @@ normalOrderTags term = case term of
 applyTags :: Expression -> Expression
 applyTags term = case term of
     Variable Nothing x -> variable x
-    Variable (Just e) x -> e
+    Variable (Just e) _ -> e
     Application False f x -> application (applyTags f) (applyTags x)
     Application True (Abstraction _ x f) y -> replaceVariable f x y
-    Application True _ y -> error "Disallowed tagged application."
+    Application True _ _ -> error "Disallowed tagged application."
     Abstraction False x f -> abstraction x (applyTags f)
-    Abstraction True x (Application _ f y) -> applyTags f
-    Abstraction True x _ -> error "Disallowed tagged abstraction."
+    Abstraction True _ (Application _ f _) -> applyTags f
+    Abstraction True _ _ -> error "Disallowed tagged abstraction."
 
+nextVarName :: String -> String
 nextVarName [] = "a"
 nextVarName (h:t) = if ord h == ord 'z'
                   then 'a':(nextVarName t)
                   else chr (1 + ord h):t
 
+containsVariable :: Expression -> String -> Bool
 containsVariable term v = case term of
     Variable _ x -> v == x
     Abstraction _ _ f -> containsVariable f v
     Application _ f x -> containsVariable f v || containsVariable x v
 
-freeVariables term = 
+freeVariables :: Expression -> [String]
+freeVariables term =
     aux term [] where
-    aux term bound_vars = case term of
+    aux t bound_vars = case t of
         Variable _ v -> if v `elem` bound_vars then [] else [v]
         Abstraction _ x f -> aux f (x:bound_vars)
         Application _ f x -> (aux f bound_vars)++(aux x bound_vars)
 
+usedVariables :: Expression -> [String]
 usedVariables term =
     aux [] term where
-    aux acc term = case term of
+    aux acc t = case t of
         Variable _ x -> x:acc
         Abstraction _ _ f -> aux acc f
         Application _ f x -> aux (aux acc f) x
 
+unusedVariable :: Expression -> String
 unusedVariable term =
-    checkVarname used "a" where
-    used = usedVariables term
+    checkVarname usedVars "a" where
+    usedVars = usedVariables term
     checkVarname used nvn = if nvn `elem` used 
                             then checkVarname used (nextVarName nvn)
                             else nvn
 
+replaceVariable :: Expression -> String -> Expression -> Expression
 replaceVariable term v subs = case term of
     Variable _ x -> if x==v then subs else variable x
     Application _ f x -> application 
@@ -138,8 +145,8 @@ replaceVariable term v subs = case term of
                                     else f
 
 alphaEquiv :: Expression -> Expression -> Bool
-alphaEquiv e1 e2 =
-    aux e1 e2 (Map.fromList []) (Map.fromList []) where
+alphaEquiv e f =
+    aux e f (Map.fromList []) (Map.fromList []) where
     aux :: Expression -> Expression -> 
            Map.Map String String -> Map.Map String String -> 
            Bool
@@ -155,31 +162,37 @@ alphaEquiv e1 e2 =
         (_, _) -> False
         where findVarMapping = Map.findWithDefault
 
+betaDirectlyReducible :: Expression -> Bool
 betaDirectlyReducible term = case term of
     Application _ (Abstraction _ _ _) _ -> True
     _ -> False
 
+betaReducible :: Expression -> Bool
 betaReducible term = case term of
     Variable _ _ -> False
-    e@(Application _ (Abstraction _ _ _) _) -> True
+    Application _ (Abstraction _ _ _) _ -> True
     Application _ f x -> (betaReducible f) || (betaReducible x)
-    Abstraction _ x f -> betaReducible f
+    Abstraction _ _ f -> betaReducible f
 
+betaReduce :: Expression -> Expression
 betaReduce term = applyTags $ allOutermostTags term
 
+etaDirectlyReducible :: Expression -> Bool
 etaDirectlyReducible term = case term of
     Abstraction _ x (Application _ _ (Variable _ y)) -> x==y
     _ -> False
 
+etaReducible :: Expression -> Bool
 etaReducible term = case term of
     Variable _ _ -> False
     Abstraction _ x (Application _ _ (Variable _ y)) -> x==y
     Abstraction _ _ f -> etaReducible f
     Application _ f x -> (etaReducible f) || (etaReducible x)
 
+etaReduce :: Expression -> Expression
 etaReduce term = allOutermostTags $ aux term
-    where aux term = case term of
-                     e@(Abstraction _ x (Application _ f v@(Variable _ y))) -> 
+    where aux t = case t of
+                     Abstraction _ x (Application _ f v@(Variable _ y)) -> 
                         if (x==y) && (not $ x `elem` freeVariables f) 
                         then f 
                         else abstraction x (etaReduce (application f v))
@@ -189,6 +202,7 @@ etaReduce term = allOutermostTags $ aux term
                                           else application f (etaReduce x)
                      e -> e
 
+containsAbbreviations :: Expression -> Environment -> Bool
 containsAbbreviations term env = case term of
    Application _ f x -> 
        (containsAbbreviations f env) || (containsAbbreviations x env)
@@ -197,6 +211,7 @@ containsAbbreviations term env = case term of
                         then containsAbbreviations f $ Map.delete x env
                         else containsAbbreviations f env
 
+applyAbbreviations :: Expression -> Environment -> Expression
 applyAbbreviations term env = case term of
    Application b f x -> Application b 
                         (applyAbbreviations f env)
@@ -209,6 +224,7 @@ applyAbbreviations term env = case term of
                          else Abstraction b x (applyAbbreviations f env))
 
 -- TODO: Make this nicer!
+simplifyStep :: Expression -> Environment -> Expression
 simplifyStep term env =
     let abbrevTagged = allAbbreviationTags env term in
     if abbrevTagged /= term 
@@ -220,6 +236,7 @@ simplifyStep term env =
     then etaReduce term
     else term
 
+simplifyComplete :: Expression -> Environment -> Expression
 simplifyComplete term env =
     let newexpr = simplifyStep term env in
     if alphaEquiv newexpr term 

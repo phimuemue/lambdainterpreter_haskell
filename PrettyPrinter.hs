@@ -5,22 +5,26 @@ import Expression
 import Data.Maybe
 import System.Console.ANSI
 
+setSGRAbbrev :: IO ()
 setSGRAbbrev = setSGR [SetColor Foreground Vivid Green]
+setSGRFunCall :: IO ()
 setSGRFunCall = setSGR [SetColor Foreground Vivid Red]
+setSGRFunArg :: IO ()
 setSGRFunArg = setSGR [SetColor Foreground Vivid Blue]
+setSGREta :: IO ()
 setSGREta = setSGR [SetColor Foreground Vivid Green]
 
 prettyPrint :: Expression -> IO ()
 prettyPrint term = do aux False term
                       setSGR []
                       putStrLn ""
-    where aux plbd term = case term of
+    where aux plbd t = case t of
             Variable abb s -> do (if isJust abb then setSGRAbbrev else return ())
                                  putStr s
                                  setSGR []
             Abstraction eta x f -> do (if eta then setSGREta else return ())
                                       case (x, f) of
-                                           (_, Abstraction _ y b) -> do putStr (if plbd then " " else "\\")
+                                           (_, Abstraction _ _ _) -> do putStr (if plbd then " " else "\\")
                                                                         putStr x 
                                                                         aux True f
                                            (_, _) -> do putStr (if plbd then " " else "\\")

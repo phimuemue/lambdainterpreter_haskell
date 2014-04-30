@@ -12,6 +12,7 @@ data InteractivityMode = Full | Steps | Interactive
 data Arguments = Arguments { filename :: [String]
                            } deriving (Data, Typeable, Show)
 
+defaultArguments :: Arguments
 defaultArguments = Arguments { filename = []
                    }
 
@@ -24,6 +25,7 @@ data Settings = Settings
                 , interruption :: MVar Bool
                 }
 
+defaultSettings :: Settings
 defaultSettings = Settings { interactivityMode = Steps
                            , simplifyNumbers = False
                            , environment = Map.empty

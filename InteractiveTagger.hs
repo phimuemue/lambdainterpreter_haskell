@@ -2,9 +2,7 @@ module InteractiveTagger where
 
 import Expression
 import UserInput
-import Settings
 
-import Data.List
 import Data.Map as Map
 
 confirmationMsg :: String -> [String] -> IO Char
