@@ -153,6 +153,10 @@ alphaEquiv e1 e2 =
         (_, _) -> False
         where findVarMapping = Map.findWithDefault
 
+betaDirectlyReducible term = case term of
+    Application _ (Abstraction _ _ _) _ -> True
+    _ -> False
+
 betaReducible term = case term of
     Variable _ _ -> False
     e@(Application _ (Abstraction _ _ _) _) -> True

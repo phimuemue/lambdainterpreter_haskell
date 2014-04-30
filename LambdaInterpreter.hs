@@ -4,6 +4,9 @@ import Parser
 import Command
 import CommandParser
 import PrettyPrinter
+import InteractiveTagger
+import UserInput
+
 import Data.Maybe
 import qualified Data.Map as Map
 import System.IO
@@ -12,51 +15,49 @@ import System.Posix.Signals
 import Control.Concurrent
 import Control.Concurrent.MVar
 
--- tryFunctions tries to apply one function after another to an expression
--- until some change occurs. If no function yields a change, it terminates.
--- Note: the settings have to be capsuled in the functions given in the
--- list.
-tryFunctions :: [Expression -> Expression] -> Expression -> IO Expression
-tryFunctions [] term = return term
+tryFunctions :: [Expression -> Expression] -> Expression -> Expression
+tryFunctions [] term = term
 tryFunctions (f:fs) expr =
     let taggedExpr = f expr in
-    let newExpr = applyTags taggedExpr in
-    if taggedExpr /= expr
-    then do prettyPrint taggedExpr
-            tryFunctions (f:fs) newExpr
-    else tryFunctions fs expr
+    if taggedExpr /= expr then taggedExpr else tryFunctions fs expr
+
+evaluateExpression :: (Expression -> IO Expression) -> Expression -> IO Expression
+evaluateExpression tagfn expr =
+    do taggedExpr <- tagfn expr
+       let newexpr = applyTags taggedExpr
+       if newexpr /= expr
+       then evaluateExpression tagfn newexpr
+       else return newexpr
+
+tagAndPrint :: (Expression -> Expression) -> Expression -> IO Expression
+tagAndPrint tagfn expr =
+    let taggedExpr = tagfn expr in
+    do prettyPrint taggedExpr
+       return taggedExpr
+
+tagAndPrintAndAsk :: (Expression -> Expression) -> Expression -> IO Expression
+tagAndPrintAndAsk tagfn expr =
+    let taggedExpr = tagfn expr in
+    do prettyPrint taggedExpr
+       c <- getSingleKeyPress "How to continue? (A: abort _: step)"
+       (case c of
+            'a' -> return expr
+            _   -> tagAndPrint tagfn taggedExpr)
 
 stepPrint :: Expression -> Settings -> IO Expression
-stepPrint expr settings = 
-    tryFunctions
-    [ allAbbreviationTags $ environment settings
-    , normalOrderTags
-    ]
-    expr
-
-tryFunctionsInteractive :: [Expression -> Expression] -> Expression -> IO Expression
-tryFunctionsInteractive [] term = return term
-tryFunctionsInteractive (f:fs) expr =
-    let taggedExpr = f expr in
-    let newExpr = applyTags taggedExpr in
-    if taggedExpr /= expr
-    then do prettyPrint taggedExpr
-            c <- howToContinue
-            (case c of
-                'a' -> return newExpr
-                'c' -> tryFunctions (f:fs) newExpr
-                _   -> tryFunctionsInteractive (f:fs) newExpr)
-    else tryFunctionsInteractive fs expr
-    where howToContinue = getSingleKeyPress 
-                          "How to continue? (A: abort, C: complete, _: step)"
+stepPrint expr settings = evaluateExpression (tagAndPrint tagfn) expr
+    where tagfn = tryFunctions 
+                  [ allAbbreviationTags $ environment settings
+                  , normalOrderTags
+                  ]
 
 interactivePrint :: Expression -> Settings -> IO Expression
-interactivePrint expr settings =
-    tryFunctionsInteractive
-    [ allAbbreviationTags $ environment settings
-    , normalOrderTags
-    ]
-    expr
+interactivePrint expr settings = evaluateExpression (interactiveTags $ environment settings) expr
+    -- evaluateExpression (tagAndPrintAndAsk tagfn) expr
+    -- where tagfn = tryFunctions 
+    --               [ allAbbreviationTags $ environment settings
+    --               , normalOrderTags
+    --               ]
 
 normalizePrint :: Expression -> Settings -> IO Expression
 normalizePrint expr settings = let env = environment settings in
@@ -125,16 +126,6 @@ readLambdaFiles f = foldl doit (return Map.empty) f where
 interruptionHandler itr = do i <- takeMVar itr
                              putStrLn "Interrupted"
                              putMVar itr (not i)
-
-getSingleKeyPress :: String -> IO Char
-getSingleKeyPress msg = do
-  hSetBuffering stdin NoBuffering
-  putStr msg
-  hFlush stdout
-  x <- getChar
-  hSetBuffering stdin LineBuffering
-  putStrLn ""
-  return x
 
 main :: IO ()
 main = do args <- cmdArgs $ defaultArguments
