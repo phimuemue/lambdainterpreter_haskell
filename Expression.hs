@@ -179,12 +179,16 @@ betaReduce term = applyTags $ allOutermostTags term
 
 etaDirectlyReducible :: Expression -> Bool
 etaDirectlyReducible term = case term of
+    Abstraction _ x (Application _ (Variable _ z) (Variable _ y)) 
+        -> x==y && y/=z
     Abstraction _ x (Application _ _ (Variable _ y)) -> x==y
     _ -> False
 
 etaReducible :: Expression -> Bool
 etaReducible term = case term of
     Variable _ _ -> False
+    Abstraction _ x (Application _ (Variable _ z) (Variable _ y)) 
+        -> x==y && y/=z
     Abstraction _ x (Application _ _ (Variable _ y)) -> x==y
     Abstraction _ _ f -> etaReducible f
     Application _ f x -> (etaReducible f) || (etaReducible x)
