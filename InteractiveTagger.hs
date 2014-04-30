@@ -7,7 +7,7 @@ import Data.Map as Map
 
 confirmVariableSubs :: String -> Expression -> IO Expression
 confirmVariableSubs v e =
-    do c <- getSingleKeyPress $ "  Substitute " ++ v ++ "? (n: No _: Yes)"
+    do c <- getSingleKeyPress $ "  Substitute " ++ v ++ "?"
        case c of
             'n' -> return $ variable v
             _   -> return e
