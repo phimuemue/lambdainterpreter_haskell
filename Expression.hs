@@ -5,6 +5,8 @@ import qualified Data.Map as Map
 import Control.Monad
 import Data.Maybe
 
+type Environment = Map.Map String Expression
+
 data Expression = 
     -- Variable may be expandable (by abbrev. from environment)
     Variable (Maybe Expression) String
@@ -41,7 +43,7 @@ instance Show Expression where
 
 -- tagging functions: Take an untagged expression and return a tagged one
 
-allAbbreviationTags :: (Map.Map String Expression) -> Expression -> Expression
+allAbbreviationTags :: Environment -> Expression -> Expression
 allAbbreviationTags env term = case term of
    Application b f x -> Application b 
                         (allAbbreviationTags env f)
@@ -164,6 +166,10 @@ betaReducible term = case term of
     Abstraction _ x f -> betaReducible f
 
 betaReduce term = applyTags $ allOutermostTags term
+
+etaDirectlyReducible term = case term of
+    Abstraction _ x (Application _ _ (Variable _ y)) -> x==y
+    _ -> False
 
 etaReducible term = case term of
     Variable _ _ -> False

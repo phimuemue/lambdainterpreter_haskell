@@ -21,7 +21,8 @@ tryFunctions (f:fs) expr =
     let taggedExpr = f expr in
     if taggedExpr /= expr then taggedExpr else tryFunctions fs expr
 
-evaluateExpression :: (Expression -> IO Expression) -> Expression -> IO Expression
+evaluateExpression :: 
+    (Expression -> IO Expression) -> Expression -> IO Expression
 evaluateExpression tagfn expr =
     do taggedExpr <- tagfn expr
        let newexpr = applyTags taggedExpr
@@ -52,12 +53,8 @@ stepPrint expr settings = evaluateExpression (tagAndPrint tagfn) expr
                   ]
 
 interactivePrint :: Expression -> Settings -> IO Expression
-interactivePrint expr settings = evaluateExpression (interactiveTags $ environment settings) expr
-    -- evaluateExpression (tagAndPrintAndAsk tagfn) expr
-    -- where tagfn = tryFunctions 
-    --               [ allAbbreviationTags $ environment settings
-    --               , normalOrderTags
-    --               ]
+interactivePrint expr settings = 
+    evaluateExpression (interactiveTags $ environment settings) expr
 
 normalizePrint :: Expression -> Settings -> IO Expression
 normalizePrint expr settings = let env = environment settings in

@@ -18,7 +18,7 @@ defaultArguments = Arguments { filename = []
 data Settings = Settings 
                 { interactivityMode :: InteractivityMode
                 , simplifyNumbers :: Bool
-                , environment :: Map.Map String Expression
+                , environment :: Environment
                 , succName :: String
                 , clargs :: Arguments
                 , interruption :: MVar Bool
@@ -29,5 +29,5 @@ defaultSettings = Settings { interactivityMode = Steps
                            , environment = Map.empty
                            , succName = "SUCC"
                            , clargs = defaultArguments
-                           --, interruption not initialized (don't know how to do it without IO)
+                           --, TODO: interruption not initialized
                            }
