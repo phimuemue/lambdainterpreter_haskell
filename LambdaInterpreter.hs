@@ -35,7 +35,7 @@ tagAndPrint tagfn expr =
 stepPrint :: Expression -> Settings -> IO Expression
 stepPrint expr settings = evaluateExpression (tagAndPrint tagfn) expr
     where tagfn = tryFunctions 
-                  [ allAbbreviationTags $ environment settings
+                  [ allAbbreviationTags $ settings
                   , normalOrderTags
                   ]
 
@@ -44,8 +44,7 @@ interactivePrint expr settings =
     evaluateExpression (interactiveTags $ environment settings) expr
 
 normalizePrint :: Expression -> Settings -> IO Expression
-normalizePrint expr settings = let env = environment settings in
-                               let nexpr = simplifyComplete expr env in
+normalizePrint expr settings = let nexpr = simplifyComplete expr settings in
                                return nexpr
 
 consumeExpression :: 

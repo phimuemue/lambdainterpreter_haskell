@@ -20,7 +20,7 @@ defaultArguments = Arguments { filename = []
 
 data Settings = Settings 
                 { interactivityMode :: InteractivityMode
-                , simplifyNumbers :: Bool
+                , knowNumbers :: Bool
                 , environment :: Environment
                 , succName :: String
                 , clargs :: Arguments
@@ -29,7 +29,7 @@ data Settings = Settings
 
 defaultSettings :: Settings
 defaultSettings = Settings { interactivityMode = Steps
-                           , simplifyNumbers = False
+                           , knowNumbers = True
                            , environment = Map.empty
                            , succName = "SUCC"
                            , clargs = defaultArguments

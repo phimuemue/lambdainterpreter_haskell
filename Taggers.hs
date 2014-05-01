@@ -1,6 +1,7 @@
 module Taggers where
 
 import Expression
+import Numbers
 import Settings
 
 import Data.Map as Map
@@ -8,15 +9,18 @@ import Data.Char
 
 -- tagging functions: Take an untagged expression and return a tagged one
 
-allAbbreviationTags :: Environment -> Expression -> Expression
-allAbbreviationTags env term = case term of
-   Application b f x -> Application b 
-                        (allAbbreviationTags env f)
-                        (allAbbreviationTags env x)
-   Variable _ v -> Variable (Map.lookup v env) v
-   Abstraction b x f -> (if x `Map.member` env
+allAbbreviationTags :: Settings -> Expression -> Expression
+allAbbreviationTags settings term = let env = environment settings in
+    case term of
+    Application b f x -> Application b 
+                         (allAbbreviationTags settings f)
+                         (allAbbreviationTags settings x)
+    Variable _ v -> if knowNumbers settings && stringIsNumber v 
+                    then Variable (Just $ numToExpr $ read v) v
+                    else Variable (Map.lookup v env) v
+    Abstraction b x f -> if x `Map.member` env
                          then Abstraction b x f
-                         else Abstraction b x (allAbbreviationTags env f))
+                         else Abstraction b x $ allAbbreviationTags settings f
 
 allOutermostTags :: Expression -> Expression
 allOutermostTags term = case term of
@@ -192,9 +196,9 @@ applyAbbreviations term env = case term of
                          else Abstraction b x (applyAbbreviations f env))
 
 -- TODO: Make this nicer!
-simplifyStep :: Expression -> Environment -> Expression
-simplifyStep term env =
-    let abbrevTagged = allAbbreviationTags env term in
+simplifyStep :: Expression -> Settings -> Expression
+simplifyStep term settings =
+    let abbrevTagged = allAbbreviationTags settings term in
     if abbrevTagged /= term 
     then applyTags abbrevTagged 
     else
@@ -204,9 +208,9 @@ simplifyStep term env =
     then etaReduce term
     else term
 
-simplifyComplete :: Expression -> Environment -> Expression
-simplifyComplete term env =
-    let newexpr = simplifyStep term env in
+simplifyComplete :: Expression -> Settings -> Expression
+simplifyComplete term settings =
+    let newexpr = simplifyStep term settings in
     if alphaEquiv newexpr term 
     then newexpr
-      else simplifyComplete newexpr env
+      else simplifyComplete newexpr settings
