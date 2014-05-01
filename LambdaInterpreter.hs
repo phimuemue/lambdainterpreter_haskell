@@ -2,6 +2,7 @@ import Settings
 import Expression
 import Command
 import CommandParser
+import Taggers
 import PrettyPrinter
 import InteractiveTagger
 

@@ -7,6 +7,8 @@ import Control.Concurrent.MVar
 
 import Expression
 
+type Environment = Map.Map String Expression
+
 data InteractivityMode = Full | Steps | Interactive
 
 data Arguments = Arguments { filename :: [String]

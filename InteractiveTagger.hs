@@ -1,7 +1,9 @@
 module InteractiveTagger where
 
 import Expression
+import Settings
 import UserInput
+import Taggers
 
 import Data.Map as Map
 
