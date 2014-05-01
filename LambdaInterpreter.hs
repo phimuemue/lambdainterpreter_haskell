@@ -60,7 +60,7 @@ evalCommand cmd settings = case cmd of
     SimpleExpression e -> do prettyPrint e
                              result <- computeMe e settings
                              putStrLn $ show result
-                             repl settings
+                             repl settings { environment = Map.insert "_" result (environment settings) }
                           where computeMe = consumeExpression
                                             (interactivityMode settings)
     LetStmt n e -> let curenv = environment settings in
@@ -122,7 +122,6 @@ main = do myargs <- cmdArgs $ defaultArguments
           itr <- newMVar False -- to capture Ctrl-C signal
           --installHandler sigINT (Catch $ interruptionHandler itr) Nothing
           putStrLn $ show myargs
-          putStrLn "sdfklsjflksdjf"
           abbrevs <- readLambdaFiles $ filename myargs
           putStrLn $ "Abbrevs:"
           putStrLn $ show abbrevs
