@@ -9,16 +9,21 @@ import Data.Char
 
 -- tagging functions: Take an untagged expression and return a tagged one
 
+variableAbbreviationTag :: Settings -> Expression -> Maybe Expression
+variableAbbreviationTag settings (Variable _ v) = 
+    if knowNumbers settings && stringIsNumber v
+    then Just $ numToExpr $ read v
+    else Map.lookup v $ environment settings
+variableAbbreviationTag _ _ = undefined
+
+
 allAbbreviationTags :: Settings -> Expression -> Expression
-allAbbreviationTags settings term = let env = environment settings in
-    case term of
+allAbbreviationTags settings term = case term of
     Application b f x -> Application b 
                          (allAbbreviationTags settings f)
                          (allAbbreviationTags settings x)
-    Variable _ v -> if knowNumbers settings && stringIsNumber v 
-                    then Variable (Just $ numToExpr $ read v) v
-                    else Variable (Map.lookup v env) v
-    Abstraction b x f -> if x `Map.member` env
+    Variable _ v -> Variable (variableAbbreviationTag settings term) v
+    Abstraction b x f -> if x `Map.member` environment settings
                          then Abstraction b x f
                          else Abstraction b x $ allAbbreviationTags settings f
 
@@ -195,22 +200,3 @@ applyAbbreviations term env = case term of
                          then Abstraction b x f
                          else Abstraction b x (applyAbbreviations f env))
 
--- TODO: Make this nicer!
-simplifyStep :: Expression -> Settings -> Expression
-simplifyStep term settings =
-    let abbrevTagged = allAbbreviationTags settings term in
-    if abbrevTagged /= term 
-    then applyTags abbrevTagged 
-    else
-    if betaReducible term 
-    then betaReduce term 
-    else if etaReducible term 
-    then etaReduce term
-    else term
-
-simplifyComplete :: Expression -> Settings -> Expression
-simplifyComplete term settings =
-    let newexpr = simplifyStep term settings in
-    if alphaEquiv newexpr term 
-    then newexpr
-      else simplifyComplete newexpr settings
