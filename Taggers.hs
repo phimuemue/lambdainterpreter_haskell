@@ -6,26 +6,51 @@ import Settings
 
 import Data.Map as Map
 import Data.Char
+import Data.Maybe
+import Data.Either.Combinators
 
--- tagging functions: Take an untagged expression and return a tagged one
+data TaggedExpression = Either Expression Expression
 
-variableAbbreviationTag :: Settings -> Expression -> Maybe Expression
-variableAbbreviationTag settings (Variable _ v) = 
+-- we need functions that automatically combines TaggedExpressions into new ones
+
+lrApplication :: Bool -> Either Expression Expression -> Either Expression Expression -> Either Expression Expression
+lrApplication b (Right f) (Right x) = Right $ Application b f x
+lrApplication b (Left f) (Right x) = Right $ Application b f x
+lrApplication b (Right f) (Left x) = Right $ Application b f x
+lrApplication b (Left f) (Left x)  = Left $ Application b f x
+
+lrAbstraction :: Bool -> String -> Either Expression Expression -> Either Expression Expression
+lrAbstraction b x (Right f) = Right $ Abstraction b x f
+lrAbstraction b x (Left f) = Left $ Abstraction b x f
+
+-- tagging functions: Take an untagged expression and return maybe a tagged one
+
+variableAbbreviationTag :: Settings -> Expression -> Either Expression Expression
+variableAbbreviationTag settings (Variable b v) = 
     if knowNumbers settings && stringIsNumber v
-    then Just $ numToExpr $ read v
-    else Map.lookup v $ environment settings
+    then Right $ numToExpr $ read v
+    else if isJust v' then Right $ fromJust v' else Left $ Variable b v 
+    where v' = Map.lookup v $ environment settings
 variableAbbreviationTag _ _ = undefined
 
 
-allAbbreviationTags :: Settings -> Expression -> Expression
+allAbbreviationTags :: Settings -> Expression -> Either Expression Expression
 allAbbreviationTags settings term = case term of
-    Application b f x -> Application b 
-                         (allAbbreviationTags settings f)
-                         (allAbbreviationTags settings x)
-    Variable _ v -> Variable (variableAbbreviationTag settings term) v
+    Application b f x -> lrApplication b f' x'
+                         where f' = allAbbreviationTags settings f
+                               x' = allAbbreviationTags settings x
+    Variable _ v -> variableAbbreviationTag settings term
     Abstraction b x f -> if x `Map.member` environment settings
-                         then Abstraction b x f
-                         else Abstraction b x $ allAbbreviationTags settings f
+                         -- TODO: This is currently a bug!
+                         -- if the argument to a function has same name as a 
+                         -- defined macro, nothing is done within the body
+                         -- of the function. However, there might be other
+                         -- macro names in the functions that could be expanded
+                         then Left term
+                         else if isRight f'
+                              then Right $ Abstraction b x (fromRight' f')
+                              else Left term
+                         where f' = allAbbreviationTags settings f
 
 allOutermostTags :: Expression -> Expression
 allOutermostTags term = case term of
@@ -44,14 +69,17 @@ allOutermostTags term = case term of
                          where tf = allOutermostTags f
                                tx = allOutermostTags x
 
-normalOrderTags :: Expression -> Expression
+normalOrderTags :: Expression -> Either Expression Expression
 normalOrderTags term = case term of
-    Application _ e@(Abstraction _ _ _) y -> Application True e y
-    Application _ f x -> if betaReducible f
-                         then application (normalOrderTags f) x
-                         else application f (normalOrderTags x)
-    Abstraction _ x f -> abstraction x (normalOrderTags f)
-    e -> e
+    Application _ e@(Abstraction _ _ _) y -> Right $ Application True e y
+    Application _ f x -> if isRight f'
+                         then lrApplication False f' (Left x)
+                         else lrApplication False f' x'
+                         where f' = normalOrderTags f
+                               x' = normalOrderTags x
+    Abstraction _ x f -> lrAbstraction False x f'
+                         where f' = normalOrderTags f
+    e -> Left e
 
 -- applyTags takes a (possibly) tagged expression and returns an untagged one
 applyTags :: Expression -> Expression
@@ -60,7 +88,7 @@ applyTags term = case term of
     Variable (Just e) _ -> e
     Application False f x -> application (applyTags f) (applyTags x)
     Application True (Abstraction _ x f) y -> replaceVariable f x y
-    Application True _ _ -> error "Disallowed tagged application."
+    Application True f x -> error $ "Disallowed tagged application.\n" ++ (show f) ++ "\n" ++ (show x)
     Abstraction False x f -> abstraction x (applyTags f)
     Abstraction True _ (Application _ f _) -> applyTags f
     Abstraction True _ _ -> error "Disallowed tagged abstraction."
