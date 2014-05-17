@@ -9,23 +9,28 @@ import Data.Char
 import Data.Maybe
 import Data.Either.Combinators
 
-data TaggedExpression = Either Expression Expression
+type TaggedExpression = Either Expression Expression
+
+fromTaggedExpression :: TaggedExpression -> Expression
+fromTaggedExpression (Left a) = a
+fromTaggedExpression (Right a) = a
+
 
 -- we need functions that automatically combines TaggedExpressions into new ones
 
-lrApplication :: Bool -> Either Expression Expression -> Either Expression Expression -> Either Expression Expression
+lrApplication :: Bool -> TaggedExpression -> TaggedExpression -> TaggedExpression
 lrApplication b (Right f) (Right x) = Right $ Application b f x
 lrApplication b (Left f) (Right x) = Right $ Application b f x
 lrApplication b (Right f) (Left x) = Right $ Application b f x
 lrApplication b (Left f) (Left x)  = Left $ Application b f x
 
-lrAbstraction :: Bool -> String -> Either Expression Expression -> Either Expression Expression
+lrAbstraction :: Bool -> String -> TaggedExpression -> TaggedExpression
 lrAbstraction b x (Right f) = Right $ Abstraction b x f
 lrAbstraction b x (Left f) = Left $ Abstraction b x f
 
 -- tagging functions: Take an untagged expression and return maybe a tagged one
 
-variableAbbreviationTag :: Settings -> Expression -> Either Expression Expression
+variableAbbreviationTag :: Settings -> Expression -> TaggedExpression
 variableAbbreviationTag settings (Variable b v) = 
     if knowNumbers settings && stringIsNumber v
     then Right $ numToExpr $ read v
@@ -34,7 +39,7 @@ variableAbbreviationTag settings (Variable b v) =
 variableAbbreviationTag _ _ = undefined
 
 
-allAbbreviationTags :: Settings -> Expression -> Either Expression Expression
+allAbbreviationTags :: Settings -> Expression -> TaggedExpression
 allAbbreviationTags settings term = case term of
     Application b f x -> lrApplication b f' x'
                          where f' = allAbbreviationTags settings f
@@ -52,24 +57,24 @@ allAbbreviationTags settings term = case term of
                               else Left term
                          where f' = allAbbreviationTags settings f
 
-allOutermostTags :: Expression -> Expression
+allOutermostTags :: Expression -> TaggedExpression
 allOutermostTags term = case term of
     -- eta-reducible abstraction
     Abstraction _ x e@(Application _ _ (Variable _ y)) -> 
         if x==y
-        then Abstraction True x e
-        else Abstraction False x $ allOutermostTags e
+        then Right $ Abstraction True x e
+        else lrAbstraction False x $ allOutermostTags e
     -- beta-reducible application
     Application _ e@(Abstraction _ _ _) y -> 
-        Application True e y
+        Right $ Application True e y
     -- "normal stuff"
-    Variable _ x -> variable x
-    Abstraction _ x f -> Abstraction False x $ allOutermostTags f
-    Application _ f x -> Application False tf tx
+    Variable _ x -> Left $ variable x
+    Abstraction _ x f -> lrAbstraction False x $ allOutermostTags f
+    Application _ f x -> lrApplication False tf tx
                          where tf = allOutermostTags f
                                tx = allOutermostTags x
 
-normalOrderTags :: Expression -> Either Expression Expression
+normalOrderTags :: Expression -> TaggedExpression
 normalOrderTags term = case term of
     Application _ e@(Abstraction _ _ _) y -> Right $ Application True e y
     Application _ f x -> if isRight f'
@@ -169,7 +174,7 @@ betaDirectlyReducible term = case term of
     _ -> False
 
 betaReduce :: Expression -> Expression
-betaReduce term = applyTags $ allOutermostTags term
+betaReduce term = applyTags $ fromTaggedExpression $ allOutermostTags term
 
 etaDirectlyReducible :: Expression -> Bool
 etaDirectlyReducible term = case term of
@@ -188,7 +193,7 @@ etaReducible term = case term of
     Application _ f x -> (etaReducible f) || (etaReducible x)
 
 etaReduce :: Expression -> Expression
-etaReduce term = allOutermostTags $ aux term
+etaReduce term = fromTaggedExpression $ allOutermostTags $ aux term
     where aux t = case t of
                      Abstraction _ x (Application _ f v@(Variable _ y)) -> 
                         if (x==y) && (not $ x `elem` freeVariables f) 
