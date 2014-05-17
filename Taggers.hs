@@ -39,7 +39,7 @@ allAbbreviationTags settings term = case term of
     Application b f x -> lrApplication b f' x'
                          where f' = allAbbreviationTags settings f
                                x' = allAbbreviationTags settings x
-    Variable _ v -> variableAbbreviationTag settings term
+    Variable _ _ -> variableAbbreviationTag settings term
     Abstraction b x f -> if x `Map.member` environment settings
                          -- TODO: This is currently a bug!
                          -- if the argument to a function has same name as a 

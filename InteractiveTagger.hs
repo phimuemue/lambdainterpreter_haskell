@@ -5,9 +5,6 @@ import Settings
 import UserInput
 import Taggers
 
-import Data.Maybe
-import Data.Either.Combinators
-
 confirmationMsg :: String -> [String] -> IO Char
 confirmationMsg heading subs =
     getSingleKeyPress $
