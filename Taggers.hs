@@ -168,13 +168,6 @@ betaDirectlyReducible term = case term of
     Application _ (Abstraction _ _ _) _ -> True
     _ -> False
 
-betaReducible :: Expression -> Bool
-betaReducible term = case term of
-    Variable _ _ -> False
-    Application _ (Abstraction _ _ _) _ -> True
-    Application _ f x -> (betaReducible f) || (betaReducible x)
-    Abstraction _ _ f -> betaReducible f
-
 betaReduce :: Expression -> Expression
 betaReduce term = applyTags $ allOutermostTags term
 
