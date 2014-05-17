@@ -12,7 +12,7 @@ setSGRFunCall = setSGR [SetColor Foreground Vivid Red]
 setSGRFunArg :: IO ()
 setSGRFunArg = setSGR [SetColor Foreground Vivid Blue]
 setSGREta :: IO ()
-setSGREta = setSGR [SetColor Foreground Vivid Green]
+setSGREta = setSGR [SetColor Foreground Vivid Yellow]
 
 prettyPrint :: Expression -> IO ()
 prettyPrint term = do aux False term
