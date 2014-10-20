@@ -6,9 +6,9 @@ import qualified Data.Map as Map
 data Expression = 
     -- Variable may be expandable (by abbrev. from environment)
     Variable (Maybe Expression) String
-    -- abstractions may be eta-convertible
+    -- Abstractions may be eta-convertible
     | Abstraction Bool String Expression
-    -- applications may be beta-convertible
+    -- Applications may be beta-convertible
     | Application Bool Expression Expression deriving (Eq, Ord)
 
 -- smart constructors for expressions

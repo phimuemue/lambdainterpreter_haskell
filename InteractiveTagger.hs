@@ -7,9 +7,7 @@ import Taggers
 
 confirmationMsg :: String -> [String] -> IO Char
 confirmationMsg heading subs =
-    getSingleKeyPress $
-    "  " ++ heading ++
-    concat ["\n   " ++ s | s <- subs]
+    getSingleKeyPress $ "  " ++ heading ++ concat (map ("\n  " ++) subs)
     
 confirmVariableSubs :: String -> Expression -> IO (Either Expression Expression)
 confirmVariableSubs v e =
