@@ -11,39 +11,38 @@ import Data.Either.Combinators
 import Control.Exception
 import Debug.Trace
 
-type TaggedExpression = Either Expression Expression
+type TaggedExpression = Maybe Expression
 
 fromTaggedExpression :: Expression -> TaggedExpression -> Expression
-fromTaggedExpression e (Left e') = assert (e==e') e
-fromTaggedExpression e (Right e') = assert (e/=e') e'
+fromTaggedExpression e Nothing = e
+fromTaggedExpression e (Just e') = assert (e/=e') e'
 
 
 -- we need functions that automatically combines TaggedExpressions into new ones
 
-lrApplication :: Bool -> TaggedExpression -> TaggedExpression -> TaggedExpression
-lrApplication b (Right f) (Right x) = Right $ Application b f x
-lrApplication b (Left f) (Right x) = Right $ Application b f x
-lrApplication b (Right f) (Left x) = Right $ Application b f x
-lrApplication b (Left f) (Left x)  = Left $ Application b f x
+lrApplication :: Bool -> Expression -> TaggedExpression -> Expression -> TaggedExpression -> TaggedExpression
+lrApplication b _ (Just f) _ (Just x) = Just $ Application b f x
+lrApplication b f Nothing _ (Just x) = Just $ Application b f x
+lrApplication b _ (Just f) x Nothing = Just $ Application b f x
+lrApplication b f Nothing x Nothing  = Nothing
 
-lrAbstraction :: Bool -> String -> TaggedExpression -> TaggedExpression
-lrAbstraction b x (Right f) = Right $ Abstraction b x f
-lrAbstraction b x (Left f) = Left $ Abstraction b x f
+lrAbstraction :: Bool -> String -> Expression -> TaggedExpression -> TaggedExpression
+lrAbstraction b x _ (Just f) = Just $ Abstraction b x f
+lrAbstraction b x f Nothing = Nothing
 
 -- tagging functions: Take an untagged expression and return maybe a tagged one
 
 variableAbbreviationTag :: Settings -> Expression -> TaggedExpression
 variableAbbreviationTag settings (Variable b v) = 
     if knowNumbers settings && stringIsNumber v
-    then Right $ numToExpr $ read v
-    else if isJust v' then Right $ fromJust v' else Left $ Variable b v 
-    where v' = Map.lookup v $ environment settings
+    then Just $ numToExpr $ read v
+    else Map.lookup v $ environment settings
 variableAbbreviationTag _ _ = undefined
 
 
 allAbbreviationTags :: Settings -> Expression -> TaggedExpression
 allAbbreviationTags settings term = case term of
-    Application b f x -> lrApplication b f' x'
+    Application b f x -> lrApplication b f f' x x'
                          where f' = allAbbreviationTags settings f
                                x' = allAbbreviationTags settings x
     Variable _ _ -> variableAbbreviationTag settings term
@@ -53,10 +52,10 @@ allAbbreviationTags settings term = case term of
                          -- defined macro, nothing is done within the body
                          -- of the function. However, there might be other
                          -- macro names in the functions that could be expanded
-                         then Left term
-                         else if isRight f'
-                              then Right $ Abstraction b x (fromRight' f')
-                              else Left term
+                         then Nothing
+                         else if isJust f'
+                              then Just $ Abstraction b x (fromJust f')
+                              else Nothing
                          where f' = allAbbreviationTags settings f
 
 allOutermostTags :: Expression -> TaggedExpression
@@ -64,29 +63,29 @@ allOutermostTags term = case term of
     -- eta-reducible abstraction
     Abstraction _ x e@(Application _ _ (Variable _ y)) -> 
         if x==y
-        then Right $ Abstraction True x e
-        else lrAbstraction False x $ allOutermostTags e
+        then Just $ Abstraction True x e
+        else lrAbstraction False x e (allOutermostTags e)
     -- beta-reducible application
     Application _ e@(Abstraction _ _ _) y -> 
-        Right $ Application True e y
+        Just $ Application True e y
     -- "normal stuff"
-    Variable y x -> Left $ Variable y x
-    Abstraction _ x f -> lrAbstraction False x $ allOutermostTags f
-    Application _ f x -> lrApplication False tf tx
+    Variable y x -> Nothing
+    Abstraction _ x f -> lrAbstraction False x f (allOutermostTags f)
+    Application _ f x -> lrApplication False f tf x tx
                          where tf = allOutermostTags f
                                tx = allOutermostTags x
 
 normalOrderTags :: Expression -> TaggedExpression
 normalOrderTags term = case term of
-    Application _ e@(Abstraction _ _ _) y -> Right $ Application True e y
-    Application _ f x -> if isRight f'
-                         then lrApplication False f' (Left x)
-                         else lrApplication False f' x'
+    Application _ e@(Abstraction _ _ _) y -> Just $ Application True e y
+    Application _ f x -> if isJust f'
+                         then lrApplication False f f' x Nothing
+                         else lrApplication False f f' x x'
                          where f' = normalOrderTags f
                                x' = normalOrderTags x
-    Abstraction _ x f -> lrAbstraction False x f'
+    Abstraction _ x f -> lrAbstraction False x f f'
                          where f' = normalOrderTags f
-    e -> Left e
+    e -> Nothing
 
 -- applyTags takes a (possibly) tagged expression and returns an untagged one
 applyTags :: Expression -> Expression

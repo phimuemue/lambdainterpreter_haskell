@@ -14,42 +14,43 @@ import Data.Maybe
 import Data.Either.Combinators
 
 tryFunctions :: [Expression -> TaggedExpression] -> Expression -> TaggedExpression
-tryFunctions [] term = Left term
+tryFunctions [] term = Nothing
 tryFunctions (f:fs) expr =
     let taggedExpr = f expr in
-    if isRight taggedExpr then taggedExpr else tryFunctions fs expr
+    if isJust taggedExpr then taggedExpr else tryFunctions fs expr
 
 evaluateExpression :: 
-    (Expression -> IO TaggedExpression) -> Expression -> IO TaggedExpression
+    (Expression -> IO TaggedExpression) -> Expression -> IO Expression
 evaluateExpression tagfn expr =
     do taggedExpr <- tagfn expr
        let newexpr = applyTags $ fromTaggedExpression expr taggedExpr
+       prettyPrint newexpr
        -- TODO: The following must be doable more elegant
        -- In particular the conversion fromRight' and afterwards back
        -- to Right must be solved in another manner
-       if isRight taggedExpr
+       if isJust taggedExpr
        then evaluateExpression tagfn newexpr
-       else return $ Left expr
+       else return expr -- return original if not transformable
 
 tagAndPrint :: (Expression -> TaggedExpression) -> Expression -> IO TaggedExpression
 tagAndPrint tagfn expr =
     let taggedExpr = tagfn expr in
-    if isRight taggedExpr then do prettyPrint $ fromRight' taggedExpr
-                                  return taggedExpr
+    if isJust taggedExpr then do prettyPrint $ fromJust taggedExpr
+                                 return taggedExpr
                          else return taggedExpr
 
-stepPrint :: Expression -> Settings -> IO TaggedExpression
+stepPrint :: Expression -> Settings -> IO Expression
 stepPrint expr settings = evaluateExpression (tagAndPrint tagfn) expr
     where tagfn = tryFunctions 
                   [ allAbbreviationTags settings
                   , normalOrderTags
                   ]
 
-interactivePrint :: Expression -> Settings -> IO TaggedExpression
+interactivePrint :: Expression -> Settings -> IO Expression
 interactivePrint expr settings = 
     evaluateExpression (interactiveTags settings) expr
 
-normalizePrint :: Expression -> Settings -> IO TaggedExpression
+normalizePrint :: Expression -> Settings -> IO Expression
 normalizePrint expr settings = evaluateExpression (return . tagfn) expr
     where tagfn = tryFunctions
                   [ allAbbreviationTags settings
@@ -57,7 +58,7 @@ normalizePrint expr settings = evaluateExpression (return . tagfn) expr
                   ]
 
 consumeExpression :: 
-    InteractivityMode -> Expression -> Settings -> IO TaggedExpression
+    InteractivityMode -> Expression -> Settings -> IO Expression
 consumeExpression strategy = case strategy of
     Full -> normalizePrint
     Steps -> stepPrint
@@ -68,14 +69,14 @@ evalCommand cmd settings = case cmd of
     EmptyCmd -> repl settings
     SimpleExpression e -> do prettyPrint e
                              result <- computeMe e settings
-                             putStrLn $ show (simpleFromTaggedExpression result)
+                             --putStrLn $ show (simpleFromTaggedExpression e result)
                              repl settings 
                                   {environment = 
-                                   Map.insert "_" (simpleFromTaggedExpression result) (environment settings)}
+                                   Map.insert "_" result (environment settings)}
                           where computeMe = consumeExpression
                                             (interactivityMode settings)
-                                simpleFromTaggedExpression (Left e) = e
-                                simpleFromTaggedExpression (Right e) = e
+                                simpleFromTaggedExpression e Nothing = e
+                                simpleFromTaggedExpression e (Just r) = r
     LetStmt n e -> let curenv = environment settings in
                       let newenv = Map.insert n e curenv in
                       repl (settings {environment = newenv})
