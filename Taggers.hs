@@ -8,12 +8,14 @@ import Data.Map as Map
 import Data.Char
 import Data.Maybe
 import Data.Either.Combinators
+import Control.Exception
+import Debug.Trace
 
 type TaggedExpression = Either Expression Expression
 
-fromTaggedExpression :: TaggedExpression -> Expression
-fromTaggedExpression (Left a) = a
-fromTaggedExpression (Right a) = a
+fromTaggedExpression :: Expression -> TaggedExpression -> Expression
+fromTaggedExpression e (Left e') = assert (e==e') e
+fromTaggedExpression e (Right e') = assert (e/=e') e'
 
 
 -- we need functions that automatically combines TaggedExpressions into new ones
@@ -68,7 +70,7 @@ allOutermostTags term = case term of
     Application _ e@(Abstraction _ _ _) y -> 
         Right $ Application True e y
     -- "normal stuff"
-    Variable _ x -> Left $ variable x
+    Variable y x -> Left $ Variable y x
     Abstraction _ x f -> lrAbstraction False x $ allOutermostTags f
     Application _ f x -> lrApplication False tf tx
                          where tf = allOutermostTags f
@@ -174,7 +176,7 @@ betaDirectlyReducible term = case term of
     _ -> False
 
 betaReduce :: Expression -> Expression
-betaReduce term = applyTags $ fromTaggedExpression $ allOutermostTags term
+betaReduce term = applyTags $ fromTaggedExpression term $ allOutermostTags term
 
 etaDirectlyReducible :: Expression -> Bool
 etaDirectlyReducible term = case term of
@@ -193,7 +195,7 @@ etaReducible term = case term of
     Application _ f x -> (etaReducible f) || (etaReducible x)
 
 etaReduce :: Expression -> Expression
-etaReduce term = fromTaggedExpression $ allOutermostTags $ aux term
+etaReduce term = fromTaggedExpression (aux term) $ allOutermostTags $ aux term
     where aux t = case t of
                      Abstraction _ x (Application _ f v@(Variable _ y)) -> 
                         if (x==y) && (not $ x `elem` freeVariables f) 

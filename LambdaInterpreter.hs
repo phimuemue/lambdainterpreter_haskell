@@ -23,7 +23,7 @@ evaluateExpression ::
     (Expression -> IO TaggedExpression) -> Expression -> IO TaggedExpression
 evaluateExpression tagfn expr =
     do taggedExpr <- tagfn expr
-       let newexpr = applyTags $ fromTaggedExpression taggedExpr
+       let newexpr = applyTags $ fromTaggedExpression expr taggedExpr
        -- TODO: The following must be doable more elegant
        -- In particular the conversion fromRight' and afterwards back
        -- to Right must be solved in another manner
@@ -68,12 +68,14 @@ evalCommand cmd settings = case cmd of
     EmptyCmd -> repl settings
     SimpleExpression e -> do prettyPrint e
                              result <- computeMe e settings
-                             putStrLn $ show (fromTaggedExpression result)
+                             putStrLn $ show (simpleFromTaggedExpression result)
                              repl settings 
                                   {environment = 
-                                   Map.insert "_" (fromTaggedExpression result) (environment settings)}
+                                   Map.insert "_" (simpleFromTaggedExpression result) (environment settings)}
                           where computeMe = consumeExpression
                                             (interactivityMode settings)
+                                simpleFromTaggedExpression (Left e) = e
+                                simpleFromTaggedExpression (Right e) = e
     LetStmt n e -> let curenv = environment settings in
                       let newenv = Map.insert n e curenv in
                       repl (settings {environment = newenv})
